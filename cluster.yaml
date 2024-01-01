@@ -1,0 +1,11 @@
+apiVersion: kind.x-k8s.io/v1alpha4
+kind: Cluster
+name: data-cluster
+nodes:
+  - role: control-plane
+  - role: worker
+    labels:
+      kind.localhost/nodegroup: core-nodes
+    extraMounts:
+      - hostPath: /tmp/druid
+        containerPath: /druid

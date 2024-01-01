@@ -1,0 +1,10 @@
+loki:
+  serviceMonitor:
+    enabled: true
+  loki:
+    auth_enabled: false
+promtail:
+  config:
+    logLevel: info
+    clients:
+      - url: http://opentelemetry-collector.o11y:3500/loki/api/v1/push

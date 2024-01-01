@@ -1,0 +1,80 @@
+grafana:
+  sidecar:
+    datasources:
+      defaultDatasourceEnabled: false
+  datasources:
+    datasources.yml:
+      apiVersion: 1
+      datasources:
+        - name: Tempo
+          type: tempo
+          uid: tempo
+          access: proxy
+          orgId: 1
+          url: http://tempo.o11y:3100
+          version: 1
+          editable: true
+          apiVersion: 1
+          isDefault: false
+          jsonData:
+            httpMethod: GET
+            tracesToLogs:
+              datasourceUid: 'loki'
+              mapTagNamesEnabled: true
+              filterBySpanID: true
+              filterByTraceID: true
+              tags:
+                - k8s.node.name
+                - k8s.pod.name
+                - k8s.namespace.name
+              mappedTags:
+                - {key: "service.name", "value": "app"}
+        - name: Loki
+          type: loki
+          uid: loki
+          access: proxy
+          orgId: 1
+          url: http://loki.o11y:3100
+          version: 1
+          editable: true
+          apiVersion: 1
+          isDefault: false
+          jsonData:
+            derivedFields:
+              - datasourceUid: tempo
+                matcherRegex: \[.+,(.+?),.+].+
+                name: trace_id
+                url: $${__value.raw}
+        - name: Prometheus
+          type: prometheus
+          uid: prometheus
+          access: proxy
+          orgId: 1
+          url: http://kube-prometheus-stack-prometheus.o11y:9090
+          version: 1
+          editable: true
+          apiVersion: 1
+          isDefault: false
+          jsonData:
+            httpMethod: POST
+            exemplarTraceIdDestinations:
+              - datasourceUid: tempo
+                name: trace_id
+        - name: Alertmanager
+          type: alertmanager
+          uid: alertmanager
+          access: proxy
+          url: http://kube-prometheus-stack-alertmanager.o11y:9093
+          version: 1
+          editable: true
+          apiVersion: 1
+          isDefault: false
+          jsonData:
+            handleGrafanaManagedAlerts: false
+            implementation: prometheus
+prometheus:
+  prometheusSpec:
+    podMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelectorNilUsesHelmValues: false
+    enableFeatures:
+      - exemplar-storage

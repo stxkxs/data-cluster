@@ -1,0 +1,24 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kafka-ingest
+  namespace: kafka
+spec:
+  backoffLimit: 4
+  template:
+    spec:
+      containers:
+        - name: kafka-ingest
+          image: proto/kafka-ingest:0.1
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: KAFKA_SERVERS
+              value: kafka-controller-0.kafka-controller-headless.kafka.svc.cluster.local:9092,kafka-controller-1.kafka-controller-headless.kafka.svc.cluster.local:9092,kafka-controller-2.kafka-controller-headless.kafka.svc.cluster.local:9092
+            - name: KAFKA_TOPIC
+              value: kttm
+            - name: KAFKA_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: kafka-user-passwords
+                  key: client-passwords
+      restartPolicy: Never

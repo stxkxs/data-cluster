@@ -1,0 +1,113 @@
+mode: daemonset
+service:
+  enabled: true
+serviceMonitor:
+  enabled: true
+presets:
+  logsCollection:
+    enabled: true
+  hostMetrics:
+    enabled: true
+  kubernetesAttributes:
+    enabled: true
+  kubeletMetrics:
+    enabled: false
+  kubernetesEvents:
+    enabled: true
+ports:
+  prometheus:
+    enabled: true
+    containerPort: 9000
+    servicePort: 9000
+    hostPort: 9000
+    protocol: TCP
+  loki:
+    enabled: true
+    containerPort: 3500
+    servicePort: 3500
+    hostPort: 3500
+    protocol: TCP
+config:
+  receivers:
+    otlp:
+      protocols:
+        http:
+          endpoint: ${env:MY_POD_IP}:4318
+    zipkin:
+      endpoint: ${env:MY_POD_IP}:9411
+    loki:
+      protocols:
+        http:
+          endpoint: ${env:MY_POD_IP}:3500
+      use_incoming_timestamp: true
+    prometheus:
+      config:
+        scrape_configs:
+        - job_name: 'kubernetes-pods'
+          kubernetes_sd_configs:
+          - role: pod
+          relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: true
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
+          - action: labelmap
+            regex: __meta_kubernetes_pod_label_(.+)
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: kubernetes_namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            action: replace
+            target_label: kubernetes_pod_name
+  processors:
+    attributes:
+      actions:
+        - action: insert
+          key: loki.attribute.labels
+          value: app, trace_id
+        - action: insert
+          key: loki.resource.labels
+          value: k8s.node.name, k8s.pod.name, k8s.namespace.name
+  exporters:
+    prometheus:
+      endpoint: ${env:MY_POD_IP}:9000
+      enable_open_metrics: true
+      resource_to_telemetry_conversion:
+        enabled: true
+    otlphttp:
+      traces_endpoint: http://tempo.o11y:4318/v1/traces
+      metrics_endpoint: http://tempo.o11y:4318/v1/metrics
+      tls:
+        insecure: true
+    zipkin:
+      endpoint: http://tempo.o11y:9411/api/v2/spans
+    loki:
+      endpoint: http://loki.o11y:3100/loki/api/v1/push
+      tls:
+        insecure: true
+  service:
+    pipelines:
+      metrics:
+        receivers: [prometheus]
+        processors: [k8sattributes,batch]
+        exporters: [debug,prometheus]
+      traces/otlphttp:
+        receivers: [otlp]
+        processors: [k8sattributes,batch]
+        exporters: [debug,otlphttp]
+      traces/zipkin:
+        receivers: [zipkin]
+        processors: [k8sattributes,batch]
+        exporters: [debug,zipkin]
+      logs:
+        receivers: [loki]
+        processors: [k8sattributes,attributes,batch]
+        exporters: [debug,loki]

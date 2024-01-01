@@ -1,0 +1,6 @@
+serviceMonitor:
+  enabled: true
+tempo:
+  receivers:
+    zipkin:
+      endpoint: 0.0.0.0:9411
